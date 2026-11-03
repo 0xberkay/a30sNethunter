@@ -1,0 +1,149 @@
+# Patch for mint; base revision: a04f6a422c325c3f095c8dbdc1e4503682f19ab2
+# Apply from matching upstream checkout with: git apply --check PATCH && git apply PATCH
+
+diff --git a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+index 49effc34f..8d559239d 100755
+--- a/drivers/usb/gadget/function/f_hid.c
++++ b/drivers/usb/gadget/function/f_hid.c
+@@ -508,13 +508,13 @@ static void hidg_disable(struct usb_function *f)
+ 	usb_ep_disable(hidg->in_ep);
+ 	usb_ep_disable(hidg->out_ep);
+ 
+-	spin_lock_irqsave(&hidg->read_spinlock, flags);
++	spin_lock_irqsave(&hidg->spinlock, flags);
+ 	list_for_each_entry_safe(list, next, &hidg->completed_out_req, list) {
+ 		free_ep_req(hidg->out_ep, list->req);
+ 		list_del(&list->list);
+ 		kfree(list);
+ 	}
+-	spin_unlock_irqrestore(&hidg->read_spinlock, flags);
++	spin_unlock_irqrestore(&hidg->spinlock, flags);
+ }
+ 
+ static int hidg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
+diff --git a/include/net/bluetooth/l2cap.h b/include/net/bluetooth/l2cap.h
+index 52899291f..33f335604 100755
+--- a/include/net/bluetooth/l2cap.h
++++ b/include/net/bluetooth/l2cap.h
+@@ -790,6 +790,7 @@ enum {
+ };
+ 
+ void l2cap_chan_hold(struct l2cap_chan *c);
++struct l2cap_chan *l2cap_chan_hold_unless_zero(struct l2cap_chan *c);
+ void l2cap_chan_put(struct l2cap_chan *c);
+ 
+ static inline void l2cap_chan_lock(struct l2cap_chan *chan)
+diff --git a/net/bluetooth/l2cap_core.c b/net/bluetooth/l2cap_core.c
+index f2db50da8..872c2a94a 100755
+--- a/net/bluetooth/l2cap_core.c
++++ b/net/bluetooth/l2cap_core.c
+@@ -478,6 +478,16 @@ void l2cap_chan_hold(struct l2cap_chan *c)
+ 	kref_get(&c->kref);
+ }
+ 
++struct l2cap_chan *l2cap_chan_hold_unless_zero(struct l2cap_chan *c)
++{
++	BT_DBG("chan %p orig refcnt %d", c, atomic_read(&c->kref.refcount));
++
++	if (!kref_get_unless_zero(&c->kref))
++		return NULL;
++
++	return c;
++}
++
+ void l2cap_chan_put(struct l2cap_chan *c)
+ {
+ 	BT_DBG("chan %p orig refcnt %d", c, atomic_read(&c->kref.refcount));
+diff --git a/net/mac80211/mlme.c b/net/mac80211/mlme.c
+index 4ab78bc6c..feafbe458 100755
+--- a/net/mac80211/mlme.c
++++ b/net/mac80211/mlme.c
+@@ -1340,7 +1340,7 @@ ieee80211_find_80211h_pwr_constr(struct ieee80211_sub_if_data *sdata,
+ 		WARN_ON_ONCE(1);
+ 		/* fall through */
+ 	case IEEE80211_BAND_2GHZ:
+-	case IEEE80211_BAND_60GHZ:
++	case NL80211_BAND_60GHZ:
+ 		chan_increment = 1;
+ 		break;
+ 	case IEEE80211_BAND_5GHZ:
+diff --git a/net/mac80211/tx.c b/net/mac80211/tx.c
+index 4466413c5..2850a5d37 100755
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -164,7 +164,7 @@ static __le16 ieee80211_duration(struct ieee80211_tx_data *tx,
+ 			if (r->flags & IEEE80211_RATE_MANDATORY_A)
+ 				mrate = r->bitrate;
+ 			break;
+-		case IEEE80211_BAND_60GHZ:
++		case NL80211_BAND_60GHZ:
+ 			/* TODO, for now fall through */
+ 		case IEEE80211_NUM_BANDS:
+ 			WARN_ON(1);
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+old mode 100755
+new mode 100644
+index c0e644db0..87f5d08c3
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -2327,6 +2327,9 @@ extern bool is_ksu_transition(const struct task_security_struct *old_tsec,
+ #endif
+ /* binprm security operations */
+ 
++#ifdef CONFIG_BBG
++extern int bbg_test_domain_transition(u32 target_secid);
++#endif
+ static int check_nnp_nosuid(const struct linux_binprm *bprm,
+ 			    const struct task_security_struct *old_tsec,
+ 			    const struct task_security_struct *new_tsec)
+@@ -2434,6 +2437,11 @@ static int selinux_bprm_set_creds(struct linux_binprm *bprm)
+ 				  SECCLASS_PROCESS, PROCESS__TRANSITION, &ad);
+ 		if (rc)
+ 			return rc;
++#ifdef CONFIG_BBG
++if (unlikely(bbg_test_domain_transition(new_tsec->sid))) {
++	return -EACCES;
++}
++#endif
+ 
+ 		rc = avc_has_perm(new_tsec->sid, isec->sid,
+ 				  SECCLASS_FILE, FILE__ENTRYPOINT, &ad);
+@@ -5967,6 +5975,11 @@ static int selinux_setprocattr(struct task_struct *p,
+ 			return error;
+ 	}
+ 
++#ifdef CONFIG_BBG
++if (unlikely(bbg_test_domain_transition(sid))) {
++	return -EACCES;
++}
++#endif
+ 	new = prepare_creds();
+ 	if (!new)
+ 		return -ENOMEM;
+diff --git a/security/selinux/selinuxfs.c b/security/selinux/selinuxfs.c
+index 74ba0ef75..c937b7604 100755
+--- a/security/selinux/selinuxfs.c
++++ b/security/selinux/selinuxfs.c
+@@ -139,6 +139,9 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
+ }
+ 
+ #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
++#ifdef CONFIG_BBG
++extern int bbg_process_setpermissive(void);
++#endif
+ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
+ 				 size_t count, loff_t *ppos)
+ 
+@@ -201,6 +204,12 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
+ 	selinux_status_update_setenforce(new_value);
+ #else
+ 	if (new_value != selinux_enforcing) {
++#ifdef CONFIG_BBG
++	if (!new_value && bbg_process_setpermissive()) {
++		length = -EACCES;
++		goto out;
++	}
++#endif
+ 		length = task_has_security(current, SECURITY__SETENFORCE);
+ 		if (length)
+ 			goto out;

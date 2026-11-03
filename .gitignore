@@ -1,0 +1,39 @@
+# Kernel build products
+**/.config
+**/.config.old
+**/.version
+**/Module.symvers
+**/modules.order
+**/System.map
+**/vmlinux
+**/vmlinux.o
+**/.tmp_*
+**/*.o
+**/*.ko
+**/*.cmd
+**/arch/arm64/boot/Image*
+**/arch/arm64/boot/dtb.img
+**/arch/arm64/boot/dts/**/*.dtb
+**/arch/arm64/boot/dts/**/*.dtbo
+**/out/
+**/AnyKernel3/*.zip
+
+# Downloaded packages, firmware, backups and local diagnostics
+backup/
+nhdl/
+out_images/
+ref/
+cmp/
+last_kmsg.txt
+*.log
+live.config.gz
+
+# Local toolchains / generated host tools
+# Toolchains are fetched separately; don't commit binaries.
+toolchain/
+gcc/
+hosttools/
+
+# Scratch device commands and generated test artifacts
+scratch_*.sh
+modtest/

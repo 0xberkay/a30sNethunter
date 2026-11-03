@@ -1,0 +1,66 @@
+# Patch for k177; base revision: 5747364f6e1dc2a1487fc48b746a85e77af2bde7
+# Apply from matching upstream checkout with: git apply --check PATCH && git apply PATCH
+
+diff --git a/arch/arm64/kernel/vdso/gettimeofday.S b/arch/arm64/kernel/vdso/gettimeofday.S
+index c39872a7..19f7e1d6 100644
+--- a/arch/arm64/kernel/vdso/gettimeofday.S
++++ b/arch/arm64/kernel/vdso/gettimeofday.S
+@@ -220,7 +220,7 @@ realtime:
+ 	get_clock_shifted_nsec res=x15, cycle_last=x10, mult=x11
+ 	get_ts_realtime res_sec=x10, res_nsec=x11, \
+ 		clock_nsec=x15, xtime_sec=x13, xtime_nsec=x14, nsec_to_sec=x9
+-	clock_gettime_return, shift=1
++	clock_gettime_return shift=1
+ 
+ 	ALIGN
+ monotonic:
+@@ -243,7 +243,7 @@ monotonic:
+ 		clock_nsec=x15, xtime_sec=x13, xtime_nsec=x14, nsec_to_sec=x9
+ 
+ 	add_ts sec=x10, nsec=x11, ts_sec=x3, ts_nsec=x4, nsec_to_sec=x9
+-	clock_gettime_return, shift=1
++	clock_gettime_return shift=1
+ 
+ 	ALIGN
+ monotonic_raw:
+@@ -264,7 +264,7 @@ monotonic_raw:
+ 		clock_nsec=x15, nsec_to_sec=x9
+ 
+ 	add_ts sec=x10, nsec=x11, ts_sec=x13, ts_nsec=x14, nsec_to_sec=x9
+-	clock_gettime_return, shift=1
++	clock_gettime_return shift=1
+ 
+ 	ALIGN
+ realtime_coarse:
+diff --git a/drivers/usb/gadget/function/f_conn_gadget.c b/drivers/usb/gadget/function/f_conn_gadget.c
+index ef34b11c..014f1a6a 100644
+--- a/drivers/usb/gadget/function/f_conn_gadget.c
++++ b/drivers/usb/gadget/function/f_conn_gadget.c
+@@ -59,6 +59,7 @@
+ #include <linux/file.h>
+ #include <linux/configfs.h>
+ #include <linux/usb/composite.h>
++#include "f_conn_gadget.ioctl.h"
+ 
+ /* platform specific definitions */
+ /* ex) #define __ANDROID__ */
+diff --git a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+index 49effc34..8d559239 100644
+--- a/drivers/usb/gadget/function/f_hid.c
++++ b/drivers/usb/gadget/function/f_hid.c
+@@ -508,13 +508,13 @@ static void hidg_disable(struct usb_function *f)
+ 	usb_ep_disable(hidg->in_ep);
+ 	usb_ep_disable(hidg->out_ep);
+ 
+-	spin_lock_irqsave(&hidg->read_spinlock, flags);
++	spin_lock_irqsave(&hidg->spinlock, flags);
+ 	list_for_each_entry_safe(list, next, &hidg->completed_out_req, list) {
+ 		free_ep_req(hidg->out_ep, list->req);
+ 		list_del(&list->list);
+ 		kfree(list);
+ 	}
+-	spin_unlock_irqrestore(&hidg->read_spinlock, flags);
++	spin_unlock_irqrestore(&hidg->spinlock, flags);
+ }
+ 
+ static int hidg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)

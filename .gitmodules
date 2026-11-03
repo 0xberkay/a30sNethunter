@@ -1,0 +1,12 @@
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/eurekadevelopment/Eureka-Kernel-Exynos7885-Q-R-S.git
+[submodule "k177"]
+	path = k177
+	url = https://github.com/TWRP-exynos7885/android_kernel_samsung_a30s.git
+[submodule "mint"]
+	path = mint
+	url = https://github.com/Sliva4/kernel_a30s.git
+[submodule "toolchain"]
+	path = toolchain
+	url = https://github.com/kdrag0n/proton-clang.git
