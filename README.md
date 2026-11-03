@@ -2,6 +2,10 @@
 
 > **Status: experimental / work in progress.** This repository is a development workspace for building and testing Linux 4.4 kernels and Kali NetHunter features on Samsung Exynos 7885 devices, especially Galaxy A30s. It is not a polished, one-click installer. Device variant, Android firmware, boot image format and partition layout must match your phone exactly.
 
+<p align="center">
+  <img src="docs/images/kalinethunter-portrait.jpeg" alt="Galaxy A30s running Kali NetHunter terminal" width="360">
+</p>
+
 ## Contents
 
 - [Overview](#overview)
